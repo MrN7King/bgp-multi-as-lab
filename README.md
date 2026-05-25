@@ -1,4 +1,3 @@
-<img width="1059" height="713" alt="image" src="https://github.com/user-attachments/assets/25e39950-4569-4091-ac85-3fa866d4f163" /><div align="center">
 
 # 🌐 BGP Multi-AS Lab
 
@@ -44,7 +43,8 @@ This project simulates how real ISPs exchange routes using **eBGP and iBGP with 
 
 ## Architecture
 
-![BGP Multi-AS Lab Topology](https://raw.githubusercontent.com/MrN7King/bgp-multi-as-lab/main/topology.png)                    
+<img width="1059" height="713" alt="image" src="https://github.com/user-attachments/assets/25e39950-4569-4091-ac85-3fa866d4f163" /><div align="center">
+                
 ---
 
 ## Stack
