@@ -43,7 +43,7 @@ This project simulates how real ISPs exchange routes using **eBGP and iBGP with 
 
 ## Architecture
 
-<img width="1059" height="713" alt="image" src="https://github.com/user-attachments/assets/25e39950-4569-4091-ac85-3fa866d4f163" /><div align="center">
+<img width="1059" height="713" alt="image" src="https://github.com/user-attachments/assets/25e39950-4569-4091-ac85-3fa866d4f163" />
                 
 ---
 
