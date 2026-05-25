@@ -1,0 +1,9 @@
+# Python dependencies for scripts and alerter
+netmiko>=4.3.0
+rich>=13.0.0
+paramiko>=3.3.0
+requests>=2.31.0
+
+# Ansible (install separately — needs pip install ansible)
+# ansible>=9.0.0
+# ansible-lint>=6.0.0

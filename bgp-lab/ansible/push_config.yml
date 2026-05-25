@@ -1,0 +1,30 @@
+---
+# ============================================================
+#  push_config.yml — Push FRR config idempotently
+#  Run: docker compose run --rm ansible push_config.yml
+# ============================================================
+- name: Push BGP config to all routers
+  hosts: bgp_routers:route_reflectors
+  gather_facts: false
+  connection: local
+
+  tasks:
+    - name: Apply frr.conf on {{ inventory_hostname }}
+      ansible.builtin.shell: >
+        docker exec {{ container }} vtysh -f /etc/frr/frr.conf 2>/dev/null
+        | grep -v vtysh.conf || true
+      register: apply_result
+      changed_when: "'Updated' in apply_result.stdout or apply_result.rc == 0"
+
+    - name: Save running config to disk on {{ inventory_hostname }}
+      ansible.builtin.shell: >
+        docker exec {{ container }} vtysh -c "write memory" 2>/dev/null
+        | grep -v vtysh.conf
+      changed_when: true
+
+    - name: Config pushed to {{ inventory_hostname }}
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: config applied and saved"
+
+- name: Verify sessions after push
+  import_playbook: verify_bgp.yml

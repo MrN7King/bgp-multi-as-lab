@@ -1,0 +1,63 @@
+# Wireshark Capture Filters for BGP Lab
+# =======================================
+# BGP uses TCP port 179. These filters let you capture
+# OPEN / UPDATE / NOTIFICATION / KEEPALIVE messages.
+
+# ── Find the Docker bridge interface names ─────────────────────────────────
+# Run this in PowerShell/terminal:
+#   docker network ls
+#   docker network inspect bgp-lab_link_r1_r2
+# Look for the "bridge" name (e.g. br-xxxxxxxxxxxx)
+# In Wireshark → select that interface to capture R1-R2 traffic
+
+# ── Wireshark display filters (use in the filter bar) ─────────────────────
+
+# All BGP traffic
+bgp
+
+# BGP OPEN messages only (session setup)
+bgp.type == 1
+
+# BGP UPDATE messages only (route advertisements/withdrawals)
+bgp.type == 2
+
+# BGP NOTIFICATION messages (errors / session teardown)
+bgp.type == 3
+
+# BGP KEEPALIVE messages
+bgp.type == 4
+
+# Routes being advertised (NLRI in UPDATE)
+bgp.update.nlri
+
+# Routes being withdrawn
+bgp.update.withdrawn_route
+
+# Community attributes in UPDATE
+bgp.attr.type_code == 8
+
+# Filter by AS path containing AS65001
+bgp.attr.as_path
+
+# TCP handshake for BGP session (port 179)
+tcp.port == 179
+
+# ── What to look for ───────────────────────────────────────────────────────
+# 1. After "docker compose up":
+#    → You should see TCP SYN → SYN-ACK → ACK on port 179
+#    → Then BGP OPEN from each side
+#    → Then KEEPALIVE exchange (session Established)
+#
+# 2. During normal operation:
+#    → BGP UPDATE with NLRI = 192.168.1.0/24, 192.168.2.0/24, etc.
+#    → Community attribute (type 8) showing 65001:100 etc.
+#
+# 3. During failover (interface shut):
+#    → BGP NOTIFICATION with error code 4 (Hold Timer Expired)
+#    OR TCP RST if interface goes down hard
+#    → Session drops → UPDATE with withdrawn routes
+#    → New session opens (OPEN exchange again)
+
+# ── Capture filter (set BEFORE capturing, more efficient) ──────────────────
+# In Wireshark: Capture → Options → Enter in "Capture Filter" box:
+#   tcp port 179

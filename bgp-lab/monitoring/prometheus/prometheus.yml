@@ -1,0 +1,34 @@
+# ============================================================
+#  Prometheus config for BGP Multi-AS Lab
+#
+#  Jobs:
+#    prometheus    — scrapes itself
+#    bgp_sessions  — scrapes the Python alerter on :8000
+#                    metrics: bgp_session_up, bgp_prefixes_received,
+#                             bgp_session_uptime_seconds, bgp_session_flaps_total
+# ============================================================
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    lab: bgp-multi-as
+
+scrape_configs:
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # BGP session metrics — exposed by bgp-alerter on port 8000
+  # The alerter polls all 4 routers via Docker SDK and serves
+  # bgp_session_up, bgp_prefixes_received, bgp_session_uptime_seconds,
+  # and bgp_session_flaps_total in Prometheus text format.
+  - job_name: bgp_sessions
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['172.30.0.40:8000']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: bgp-alerter

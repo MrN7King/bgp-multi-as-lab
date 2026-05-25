@@ -1,0 +1,48 @@
+---
+# ============================================================
+#  verify_bgp.yml — Check all BGP sessions are Established
+#  Run: docker compose run --rm ansible verify_bgp.yml
+# ============================================================
+- name: Verify BGP sessions on all routers
+  hosts: bgp_routers:route_reflectors
+  gather_facts: false
+  connection: local
+
+  tasks:
+    - name: Get BGP summary JSON from {{ inventory_hostname }}
+      ansible.builtin.shell: >
+        docker exec {{ container }} vtysh -c "show bgp summary json" 2>/dev/null
+        | grep -v vtysh.conf
+      register: bgp_raw
+      changed_when: false
+
+    - name: Parse BGP summary
+      ansible.builtin.set_fact:
+        bgp_data: "{{ bgp_raw.stdout | from_json }}"
+
+    - name: Extract peer states
+      ansible.builtin.set_fact:
+        peers: "{{ bgp_data.ipv4Unicast.peers | default({}) }}"
+
+    - name: Show session table for {{ inventory_hostname }}
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} (AS{{ asn }}) |
+          peer={{ item.key }} |
+          state={{ item.value.state }} |
+          prefixes={{ item.value.pfxRcd | default(0) }}
+      loop: "{{ peers | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+
+    - name: Assert all sessions Established on {{ inventory_hostname }}
+      ansible.builtin.assert:
+        that: item.value.state == "Established"
+        fail_msg: >-
+          FAIL: {{ inventory_hostname }} peer {{ item.key }}
+          is {{ item.value.state }}, not Established
+        success_msg: >-
+          PASS: {{ inventory_hostname }} → {{ item.key }} Established
+      loop: "{{ peers | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"

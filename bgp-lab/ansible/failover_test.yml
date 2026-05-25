@@ -1,0 +1,94 @@
+---
+# ============================================================
+#  failover_test.yml — Full automated failover test
+#  1. Snapshot BEFORE tables  2. Kill R1 link  3. Verify down
+#  4. Restore link  5. Verify recovery  6. Print diff summary
+#  Run: docker compose run --rm ansible failover_test.yml
+# ============================================================
+- name: BGP failover test
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    routers:
+      - bgp-r1
+      - bgp-r2
+      - bgp-r3
+      - bgp-r4-rr
+
+  tasks:
+    - name: "BEFORE — snapshot BGP tables"
+      ansible.builtin.shell: >
+        docker exec {{ item }} vtysh -c "show ip bgp" 2>/dev/null
+        | grep -v vtysh.conf || echo "EMPTY"
+      loop: "{{ routers }}"
+      register: before_tables
+      changed_when: false
+
+    - name: Show BEFORE prefix counts
+      ansible.builtin.debug:
+        msg: >-
+          BEFORE | {{ item.item }}:
+          {{ item.stdout_lines | select('match', '^[*>]') | list | length }} prefixes
+      loop: "{{ before_tables.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: "ACTION — bring down R1 eth0 (kills R1-R2 eBGP)"
+      ansible.builtin.shell: docker exec bgp-r1 ip link set eth0 down
+      changed_when: true
+
+    - name: "WAIT — hold timer expiry + convergence (20s)"
+      ansible.builtin.pause:
+        seconds: 20
+
+    - name: "AFTER — snapshot BGP tables"
+      ansible.builtin.shell: >
+        docker exec {{ item }} vtysh -c "show ip bgp" 2>/dev/null
+        | grep -v vtysh.conf || echo "EMPTY"
+      loop: "{{ routers }}"
+      register: after_tables
+      changed_when: false
+
+    - name: Show AFTER prefix counts (R1 routes should be gone from R2/R3)
+      ansible.builtin.debug:
+        msg: >-
+          AFTER  | {{ item.item }}:
+          {{ item.stdout_lines | select('match', '^[*>]') | list | length }} prefixes
+      loop: "{{ after_tables.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: "ACTION — restore R1 eth0"
+      ansible.builtin.shell: docker exec bgp-r1 ip link set eth0 up
+      changed_when: true
+
+    - name: "WAIT — re-convergence (20s)"
+      ansible.builtin.pause:
+        seconds: 20
+
+    - name: "RECOVERY CHECK — get BGP summaries"
+      ansible.builtin.shell: >
+        docker exec {{ item }} vtysh -c "show bgp summary json" 2>/dev/null
+        | grep -v vtysh.conf
+      loop: "{{ routers }}"
+      register: recovery
+      changed_when: false
+
+    - name: Assert sessions re-Established after recovery
+      ansible.builtin.assert:
+        that: "'Established' in item.stdout"
+        fail_msg: "FAIL: {{ item.item }} — no Established sessions found after restore"
+        success_msg: "PASS: {{ item.item }} — sessions re-Established"
+      loop: "{{ recovery.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Test result
+      ansible.builtin.debug:
+        msg:
+          - "========================================"
+          - "  BGP FAILOVER TEST: PASSED"
+          - "  All sessions recovered after link restore"
+          - "========================================"

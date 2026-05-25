@@ -1,0 +1,46 @@
+---
+# ============================================================
+#  harden_bgp.yml — Audit BGP security hardening
+#  Checks: MD5 auth, TTL security, max-prefix limits
+#  Run: docker compose run --rm ansible harden_bgp.yml
+# ============================================================
+- name: BGP security hardening audit
+  hosts: bgp_routers
+  gather_facts: false
+  connection: local
+
+  tasks:
+    - name: Get running config from {{ inventory_hostname }}
+      ansible.builtin.shell: >
+        docker exec {{ container }} vtysh -c "show running-config" 2>/dev/null
+        | grep -v vtysh.conf
+      register: running_config
+      changed_when: false
+
+    - name: Check MD5 authentication — {{ inventory_hostname }}
+      ansible.builtin.assert:
+        that: "'password bgplab_secret' in running_config.stdout"
+        fail_msg: "FAIL {{ inventory_hostname }}: MD5 auth missing"
+        success_msg: "PASS {{ inventory_hostname }}: MD5 auth present"
+
+    - name: Check TTL security (GTSM) — {{ inventory_hostname }}
+      ansible.builtin.assert:
+        that: "'ttl-security hops' in running_config.stdout"
+        fail_msg: "FAIL {{ inventory_hostname }}: TTL security missing"
+        success_msg: "PASS {{ inventory_hostname }}: TTL security present"
+
+    - name: Check max-prefix limit — {{ inventory_hostname }}
+      ansible.builtin.assert:
+        that: "'maximum-prefix' in running_config.stdout"
+        fail_msg: "FAIL {{ inventory_hostname }}: max-prefix limit missing"
+        success_msg: "PASS {{ inventory_hostname }}: max-prefix present"
+
+    - name: Check no default-route leak — {{ inventory_hostname }}
+      ansible.builtin.assert:
+        that: "'default-originate' not in running_config.stdout"
+        fail_msg: "WARN {{ inventory_hostname }}: default-originate detected"
+        success_msg: "PASS {{ inventory_hostname }}: no default-originate"
+
+    - name: All security checks passed — {{ inventory_hostname }}
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }}: security audit PASSED (MD5 + GTSM + max-prefix)"
